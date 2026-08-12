@@ -1,0 +1,6 @@
+{
+  "name": "AI Cover Song Accelerator",
+  "description": "The Platinum Production Package: AI Cover Song Accelerator workflow for Suno beat generation, Gemini lyric flow, BandLab recording, and Platinum Mix token redemption.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
