@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GeminiPromptParams } from '../types';
 import {
   Sparkles,
@@ -7,10 +7,11 @@ import {
   Zap,
   HelpCircle,
   FileAudio,
-  Send,
   Loader2,
   BookOpen,
   ArrowRight,
+  Play,
+  Square
 } from 'lucide-react';
 
 interface GeminiLyricEngineProps {
@@ -58,10 +59,31 @@ export const GeminiLyricEngine: React.FC<GeminiLyricEngineProps> = ({
   const [isLiveGenerating, setIsLiveGenerating] = useState(false);
   const [liveLyrics, setLiveLyrics] = useState('');
   const [showInstructions, setShowInstructions] = useState(true);
+  
+  // Teleprompter Auto-Scroll State
+  const teleprompterRef = useRef<HTMLPreElement>(null);
+  const [isScrolling, setIsScrolling] = useState(false);
 
-  // Dynamically generate the Master Prompt for Gemini
+  // Auto-Scroll Loop
+  useEffect(() => {
+    let animationFrameId: number;
+    const scrollTeleprompter = () => {
+      if (isScrolling && teleprompterRef.current) {
+        teleprompterRef.current.scrollTop += 0.5; // Adjust speed here
+        animationFrameId = requestAnimationFrame(scrollTeleprompter);
+      }
+    };
+
+    if (isScrolling) {
+      animationFrameId = requestAnimationFrame(scrollTeleprompter);
+    }
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [isScrolling]);
+
+  // Generate Master Prompt using TJB Pocket & Lyric Architect Gem Instructions
   const constructGeminiPrompt = () => {
-    return `[INSTRUCTION FOR GOOGLE GEMINI AUDIO ANALYSIS & HIT LYRIC WRITING]
+    return `SYSTEM INSTRUCTION: You are an elite music producer and songwriter specializing in Southern rap, Southern trap, hip-hop, and pop. When analyzing audio, assess tempo, groove, song structure, and dynamic rhythmic pockets first. Draft raw, industry-level lyrics that perfectly fit those exact vocal pockets. Do not reference beat-making or mixing mechanics. Avoid clichés like brass, tubas, or flutes. Ensure the lyrics sound natural for a human to re-record so the final track is copyright-safe and authentic.
 
 1. AUDIO ANALYSIS INSTRUCTION:
 Please perform a detailed acoustic and rhythmic analysis of the uploaded audio beat track.
@@ -71,18 +93,17 @@ Identify:
 - Arrangement structure (where beat drops, breakdowns, transitions, and main hook sections occur).
 
 2. VOCAL CADENCE & LYRIC REQUIREMENTS:
-Generate complete, professional hit song lyrics customized to match the audio breakdown with the following artist specifications:
+Generate complete hit song lyrics matching the audio breakdown with the following artist specs:
 - Vocal Flow Style: ${geminiParams.flowStyle}
 - Song Structure Template: ${geminiParams.songStructure}
 - Rhyme Density & Cadence: ${geminiParams.rhymeDensity}
-${geminiParams.topic ? `- Song Topic / Theme: "${geminiParams.topic}"` : '- Song Topic / Theme: Rising to victory, overcoming obstacles, elevated status, and platinum success.'}
+${geminiParams.topic ? `- Song Topic / Theme: "${geminiParams.topic}"` : '- Song Topic / Theme: Overcoming obstacles, elevated status, and platinum success.'}
 ${geminiParams.artistVibe ? `- Artist Vibe Reference: ${geminiParams.artistVibe}` : ''}
 ${sunoBeatSummary ? `- Beat Context: ${sunoBeatSummary}` : ''}
 
 3. OUTPUT FORMATTING REQUIREMENTS:
-- Clearly label each song section using bracketed headers like [INTRO], [VERSE 1], [CHORUS], [VERSE 2], [OUTRO].
-- Include vocal delivery notes and ad-lib cues in parentheses e.g. (Ad-lib: Yeah!), (Stack vocal), (Fast chopper flow).
-- Provide a brief "CADENCE & FLOW GUIDE" at the top explaining how to deliver the vocals over the beat tempo.`;
+- Label each song section using bracketed headers: [INTRO], [VERSE 1], [CHORUS].
+- Include vocal delivery notes in parentheses e.g. (Ad-lib: Yeah!), (Stack vocal).`;
   };
 
   useEffect(() => {
@@ -108,15 +129,9 @@ ${sunoBeatSummary ? `- Beat Context: ${sunoBeatSummary}` : ''}
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          genre: 'Southern Trap / Melodic Rap',
-          mood: 'Energetic / Dark',
-          bpm: '120 BPM',
-          flowStyle: geminiParams.flowStyle,
-          songStructure: geminiParams.songStructure,
-          rhymeDensity: geminiParams.rhymeDensity,
-          beatDescription: geminiParams.customAudioDetails || sunoBeatSummary || '808 sub-bass, atmospheric synths, crisp snare',
-          topic: geminiParams.topic,
-          artistVibe: geminiParams.artistVibe,
+          model: 'gemini-4-neon', // Updated to latest audio-capable model
+          prompt: masterPrompt,
+          systemInstruction: "You are an elite music producer and songwriter specializing in Southern rap, Southern trap, hip-hop, and pop. Analyze audio for tempo, groove, and rhythmic pockets. Draft raw, industry-level lyrics that perfectly fit those exact vocal pockets. Do not reference beat-making or mixing mechanics. Avoid clichés like brass, tubas, or flutes. Ensure the lyrics sound natural for a human to re-record so the final track is copyright-safe and authentic."
         }),
       });
 
@@ -206,57 +221,36 @@ ${sunoBeatSummary ? `- Beat Context: ${sunoBeatSummary}` : ''}
 
         {/* Interactive Vocal Flow Customizer - Mobile Stack */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
-          {/* Vocal Flow Style */}
           <div className="bg-[#0B0C10] p-3.5 sm:p-4 rounded-xl border border-[#1F2833]">
-            <label className="block text-xs font-semibold text-[#45A29E] uppercase mb-2">
-              1. Vocal Cadence
-            </label>
+            <label className="block text-xs font-semibold text-[#45A29E] uppercase mb-2">1. Vocal Cadence</label>
             <select
               value={geminiParams.flowStyle}
               onChange={(e) => setGeminiParams({ ...geminiParams, flowStyle: e.target.value })}
               className="w-full bg-[#12141C] border border-[#1F2833] rounded-lg px-3.5 py-3 min-h-[48px] text-base sm:text-sm text-white focus:outline-none focus:border-[#66FCF1]"
             >
-              {FLOW_STYLES.map((f) => (
-                <option key={f} value={f}>
-                  {f}
-                </option>
-              ))}
+              {FLOW_STYLES.map((f) => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
 
-          {/* Song Structure Template */}
           <div className="bg-[#0B0C10] p-3.5 sm:p-4 rounded-xl border border-[#1F2833]">
-            <label className="block text-xs font-semibold text-[#45A29E] uppercase mb-2">
-              2. Structure Template
-            </label>
+            <label className="block text-xs font-semibold text-[#45A29E] uppercase mb-2">2. Structure Template</label>
             <select
               value={geminiParams.songStructure}
               onChange={(e) => setGeminiParams({ ...geminiParams, songStructure: e.target.value })}
               className="w-full bg-[#12141C] border border-[#1F2833] rounded-lg px-3.5 py-3 min-h-[48px] text-base sm:text-sm text-white focus:outline-none focus:border-[#66FCF1]"
             >
-              {SONG_STRUCTURES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
+              {SONG_STRUCTURES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
 
-          {/* Rhyme Density & Cadence */}
           <div className="bg-[#0B0C10] p-3.5 sm:p-4 rounded-xl border border-[#1F2833]">
-            <label className="block text-xs font-semibold text-[#45A29E] uppercase mb-2">
-              3. Rhyme Density &amp; Cadence
-            </label>
+            <label className="block text-xs font-semibold text-[#45A29E] uppercase mb-2">3. Rhyme Density & Cadence</label>
             <select
               value={geminiParams.rhymeDensity}
               onChange={(e) => setGeminiParams({ ...geminiParams, rhymeDensity: e.target.value })}
               className="w-full bg-[#12141C] border border-[#1F2833] rounded-lg px-3.5 py-3 min-h-[48px] text-base sm:text-sm text-white focus:outline-none focus:border-[#66FCF1]"
             >
-              {RHYME_DENSITIES.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
+              {RHYME_DENSITIES.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
         </div>
@@ -264,9 +258,7 @@ ${sunoBeatSummary ? `- Beat Context: ${sunoBeatSummary}` : ''}
         {/* Additional Concept & Artist References */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-[#45A29E] uppercase mb-1.5">
-              Song Concept / Topic (Optional):
-            </label>
+            <label className="block text-xs font-semibold text-[#45A29E] uppercase mb-1.5">Song Concept / Topic (Optional):</label>
             <input
               type="text"
               placeholder="e.g. Turning struggles into triumphs, late night studio"
@@ -276,9 +268,7 @@ ${sunoBeatSummary ? `- Beat Context: ${sunoBeatSummary}` : ''}
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-[#45A29E] uppercase mb-1.5">
-              Artist Vibe Reference (Optional):
-            </label>
+            <label className="block text-xs font-semibold text-[#45A29E] uppercase mb-1.5">Artist Vibe Reference (Optional):</label>
             <input
               type="text"
               placeholder="e.g. Rod Wave melodic hooks, Drake storytelling"
@@ -294,13 +284,9 @@ ${sunoBeatSummary ? `- Beat Context: ${sunoBeatSummary}` : ''}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
             <div className="flex items-center gap-2">
               <FileAudio className="w-4 h-4 text-[#66FCF1] shrink-0" />
-              <span className="text-xs font-bold uppercase tracking-wider text-[#66FCF1]">
-                Master Gemini Audio Prompt
-              </span>
+              <span className="text-xs font-bold uppercase tracking-wider text-[#66FCF1]">Master Gemini Audio Prompt</span>
             </div>
-            <span className="text-[10px] text-gray-400 font-mono">
-              Optimized for Gemini Audio Processing
-            </span>
+            <span className="text-[10px] text-gray-400 font-mono">Optimized for Gemini Audio Processing</span>
           </div>
 
           <textarea
@@ -315,22 +301,10 @@ ${sunoBeatSummary ? `- Beat Context: ${sunoBeatSummary}` : ''}
               type="button"
               onClick={handleCopyPrompt}
               className={`w-full flex-1 inline-flex items-center justify-center gap-2 px-6 py-3.5 min-h-[48px] rounded-lg text-xs font-bold uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
-                copiedPrompt
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-[#45A29E] text-[#0B0C10] hover:bg-[#66FCF1] hover:text-[#0B0C10]'
+                copiedPrompt ? 'bg-emerald-600 text-white' : 'bg-[#45A29E] text-[#0B0C10] hover:bg-[#66FCF1] hover:text-[#0B0C10]'
               }`}
             >
-              {copiedPrompt ? (
-                <>
-                  <Check className="w-4 h-4" />
-                  <span>Prompt Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4" />
-                  <span>Copy Gemini Prompt</span>
-                </>
-              )}
+              {copiedPrompt ? <><Check className="w-4 h-4" /><span>Prompt Copied!</span></> : <><Copy className="w-4 h-4" /><span>Copy Gemini Prompt</span></>}
             </button>
 
             <button
@@ -339,41 +313,42 @@ ${sunoBeatSummary ? `- Beat Context: ${sunoBeatSummary}` : ''}
               disabled={isLiveGenerating}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 min-h-[48px] rounded-lg bg-transparent hover:bg-[#1F2833] text-[#66FCF1] text-xs font-bold uppercase tracking-wider border border-[#66FCF1] transition-all active:scale-95 cursor-pointer disabled:opacity-50"
             >
-              {isLiveGenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 text-[#66FCF1] animate-spin" />
-                  <span>Generating Lyrics with AI...</span>
-                </>
-              ) : (
-                <>
-                  <Zap className="w-4 h-4 text-[#66FCF1]" />
-                  <span>Generate Lyrics Now (In-App)</span>
-                </>
-              )}
+              {isLiveGenerating ? <><Loader2 className="w-4 h-4 text-[#66FCF1] animate-spin" /><span>Generating Lyrics with AI...</span></> : <><Zap className="w-4 h-4 text-[#66FCF1]" /><span>Generate Lyrics Now (In-App)</span></>}
             </button>
           </div>
         </div>
 
-        {/* Live Generated Lyrics Preview Box */}
+        {/* Live Generated Lyrics Preview & Teleprompter */}
         {liveLyrics && (
           <div className="bg-[#0B0C10] border border-[#66FCF1] rounded-xl p-4 sm:p-5 animate-fade-in glow-mint">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1F2833] pb-3 mb-3">
               <div className="flex items-center gap-2">
                 <Zap className="w-5 h-5 text-[#66FCF1] shrink-0" />
-                <h3 className="text-xs font-bold text-white uppercase tracking-wide">
-                  Live Gemini Generated Lyrics
-                </h3>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wide">Live Teleprompter Lyrics</h3>
               </div>
-              <button
-                onClick={handleSendToTeleprompter}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3 min-h-[44px] rounded-lg bg-[#45A29E] text-[#0B0C10] font-bold text-xs uppercase tracking-wider hover:bg-[#66FCF1] transition-all active:scale-95 cursor-pointer"
-              >
-                <span>Send to Teleprompter</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsScrolling(!isScrolling)}
+                  className={`inline-flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-lg font-bold text-xs uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
+                    isScrolling ? 'bg-red-500/20 text-red-400 border border-red-500' : 'bg-[#12141C] text-[#66FCF1] border border-[#66FCF1]'
+                  }`}
+                >
+                  {isScrolling ? <><Square className="w-4 h-4" /><span>Stop Scroll</span></> : <><Play className="w-4 h-4" /><span>Auto-Scroll</span></>}
+                </button>
+                <button
+                  onClick={handleSendToTeleprompter}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-lg bg-[#45A29E] text-[#0B0C10] font-bold text-xs uppercase tracking-wider hover:bg-[#66FCF1] transition-all active:scale-95 cursor-pointer"
+                >
+                  <span>Send to Workspace</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            <pre className="output-box-sleek p-3.5 text-xs sm:text-sm font-mono text-gray-200 whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto">
+            <pre 
+              ref={teleprompterRef}
+              className="output-box-sleek p-3.5 text-xs sm:text-lg md:text-xl font-sans text-gray-100 whitespace-pre-wrap leading-loose h-[400px] overflow-y-auto scroll-smooth"
+            >
               {liveLyrics}
             </pre>
           </div>
